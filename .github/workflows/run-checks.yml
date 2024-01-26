@@ -72,20 +72,18 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: artifact-${{ github.event.inputs.CHAPTER }}-${{ github.event.inputs.EXERCISE }}
+          path: ${{ github.event.inputs.LANGUAGE }}/${{ github.event.inputs.CHAPTER }}/${{ github.event.inputs.EXERCISE }}
 
-        # Temp fix for package management
-      - name: Move test file to working directory
-        run: |
-          mv ${{ github.event.inputs.LANGUAGE }}/${{ github.event.inputs.CHAPTER }}/${{ github.event.inputs.EXERCISE }}/tasks.py ${{ github.workspace }}
-
-        # Run test cases and use artifact
+      # Run test cases and use artifact
       - name: Run specific tasks
         if: ${{ github.event.inputs.TASK != 'ALL'}}
         run: |
+          cd  ${{ github.event.inputs.LANGUAGE }}/${{ github.event.inputs.CHAPTER }}/${{ github.event.inputs.EXERCISE }}/
           python3 tasks.py ${{ github.event.inputs.TASK }}
       - name: Run all tasks
         if: ${{ github.event.inputs.TASK == 'ALL' }}
         run: |
+          cd ${{ github.event.inputs.LANGUAGE }}/${{ github.event.inputs.CHAPTER }}/${{ github.event.inputs.EXERCISE }}/
           python3 tasks.py
 
       - name: Save test results as artifact
@@ -93,12 +91,13 @@ jobs:
         with:
           name: artifact-${{ github.event.inputs.CHAPTER }}-${{ github.event.inputs.EXERCISE }}-results
           path: |
-            ./*.txt
+            ${{ github.event.inputs.LANGUAGE }}/${{ github.event.inputs.CHAPTER }}/${{ github.event.inputs.EXERCISE }}/*.txt
           retention-days: 1
 
       - name: Save score.txt contents to a variable
         if: ${{ github.event.inputs.TASK == 'ALL' }}
         run: |
+          cd ${{ github.event.inputs.LANGUAGE }}/${{ github.event.inputs.CHAPTER }}/${{ github.event.inputs.EXERCISE }}/
           contents=$(<score.txt)
           echo "$contents"
           echo "CONTENTS=$(echo $contents)" >> $GITHUB_ENV
@@ -139,9 +138,15 @@ jobs:
 
       - name: Commit test results to the student's repo
         run: |
-          git config  user.name "Auto-grader"
-          git config  user.email "Auto-grader"
+          git config user.name "Auto-grader"
+          git config user.email "Auto-grader"
           git add ./*.txt
+          # Check if there are any changes
+          git diff --staged --quiet || { 
+           echo "No changes to commit. Moving on."
+           exit 0
+          }
+          # Commit if there are changes
           git commit -m "${{ github.event.inputs.CHAPTER }}/${{ github.event.inputs.EXERCISE }}-test-results"
 
       - name: Push student changes
